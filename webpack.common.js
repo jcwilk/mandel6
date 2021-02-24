@@ -1,11 +1,9 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 
 module.exports = {
-    entry: './src/index.js',
+    entry: './src/index.ts',
     plugins: [
-        new CleanWebpackPlugin(),
         new HtmlWebpackPlugin({
             title: 'Mandel4',
             minify: {
@@ -13,12 +11,13 @@ module.exports = {
             }
         }),
     ],
-    output: {
-        filename: '[name].bundle.js',
-        path: path.resolve(__dirname, 'docs'),
-    },
     module: {
         rules: [
+            {
+                test: /\.tsx?$/,
+                use: 'ts-loader',
+                exclude: /node_modules/,
+            },
             {
                 test: /\.css$/i,
                 use: ['style-loader', 'css-loader'],
@@ -28,5 +27,12 @@ module.exports = {
                 type: 'asset/resource',
             },
         ],
+    },
+    resolve: {
+        extensions: ['.tsx', '.ts', '.js', '.png'],
+    },
+    output: {
+        filename: '[name].bundle.js',
+        path: path.resolve(__dirname, 'docs'),
     },
 };

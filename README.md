@@ -7,4 +7,4 @@ It's configured to build into `docs` which is under version control for the purp
 ## Commands:
 
 -   `npm run build` - starts build procedure for production and deletes all old builds (these are checked in for Github Pages under /docs)
--   `npm run dev` - start watching for files and open's server on localhost:8000
+-   `npm run dev` - start watching for files and serving from localhost:8000

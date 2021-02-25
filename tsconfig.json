@@ -1,7 +1,7 @@
 {
     "compilerOptions": {
-        "target": "ES2015",
-        "module": "ES2015",
+        "target": "ES2019", // TODO - figure out what the appropriate values should be here
+        "module": "CommonJS",
         "strict": true,
         "esModuleInterop": true,
         //"skipLibCheck": true,

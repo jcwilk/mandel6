@@ -1,6 +1,15 @@
 import _ from 'lodash';
 import './style.css';
 import Buttons from './buttons.png';
+import REGL from "regl";
+
+const regl = REGL(); // default fullscreen behavior
+
+regl.frame(function () {
+    regl.clear({
+        color: [0.5, 0.5, 0.5, 1]
+    })
+})
 
 function component() {
     const element = document.createElement('div');
@@ -12,7 +21,7 @@ function component() {
     const buttons = new Image();
     buttons.src = Buttons;
 
-    element.appendChild(buttons);
+    element.appendChild(buttons); // how to get images rendered on top?
 
     return element;
 }

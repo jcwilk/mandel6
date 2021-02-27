@@ -3,9 +3,14 @@ import './style.css';
 import Buttons from './buttons.png';
 import REGL from "regl";
 
-const regl = REGL(); // default fullscreen behavior
+const regl = REGL({
+    // TODO: why do these seem to do nothing?
+    // extensions: ['OES_texture_float'],
+    // optionalExtensions: ['oes_texture_float_linear'],
+});
 
-const RADIUS = 512
+const RADIUS = 2048 // TODO - make this not just square
+const MAX_ITERATIONS = 128
 const INITIAL_CONDITIONS = (Array(RADIUS * RADIUS * 4)).fill(0)
 
 const state = (Array(2)).fill(0).map(() =>
@@ -15,7 +20,9 @@ const state = (Array(2)).fill(0).map(() =>
             data: INITIAL_CONDITIONS,
             wrap: 'repeat'
         }),
-        colorFormat: 'rgba32f',
+        // semingly no effect (yet?)
+        // colorFormat: 'rgba32f',
+        // colorType: 'float',
         depthStencil: false
     }))
 
@@ -30,9 +37,9 @@ const updateFractal = regl({
     void main()
     {
         vec4 data = texture2D(prevState, uv);
-        float x = data.x*2.;
-        float y = data.y*2.;
-        int i = int(data.z*256.);
+        float x = data.x+data.x;
+        float y = data.y+data.y;
+        int i = int(data.z*${MAX_ITERATIONS}.);
         float signs = data.a;
         vec2 c = (uv-vec2(0.5))*4.;
 
@@ -42,10 +49,17 @@ const updateFractal = regl({
             signs = 0.;
         }
 
-        if (signs >= .5) x = -x;
-        if (mod(signs,.5) > 0.) y = -y;
+        if (signs > .5) {
+            x = -x;
+            signs-=.5;
+        }
+        if (signs > .25) {
+            y = -y;
+        }
 
-        if (abs(x) < 2. && abs(y) < 2.) {
+        if (i >= ${MAX_ITERATIONS}) {
+            i = ${MAX_ITERATIONS};
+        } else if (abs(x) < 2. && abs(y) < 2.) {
             float zx = x*x - y*y + c.x;
             y = (x+x)*y + c.y;
             x = zx;
@@ -55,9 +69,9 @@ const updateFractal = regl({
             y = 2.;
         }
         signs = 0.;
-        if (x < 0.) signs+=.5;
-        if (y < 0.) signs+=.25;
-        gl_FragColor = vec4(abs(x)/2.,abs(y)/2.,float(i)/256.,signs);
+        if (x < 0.) signs+=.6;
+        if (y < 0.) signs+=.3;
+        gl_FragColor = vec4(abs(x)/2.,abs(y)/2.,float(i)/${MAX_ITERATIONS}.,signs);
     }`,
 
     framebuffer: ({ tick }) => state[(tick + 1) % 2],
@@ -73,7 +87,7 @@ const setupQuad = regl({
   uniform sampler2D prevState;
   varying vec2 uv;
   void main() {
-    float state = texture2D(prevState, uv).r;
+    float state = texture2D(prevState, uv).z;
     gl_FragColor = vec4(vec3(state), 1);
   }`,
 
@@ -96,10 +110,14 @@ const setupQuad = regl({
 
     depth: { enable: false },
 
-    count: 3
+    count: 3,
+
+    // TODO
+    //primitive: "triangle fan"
 })
 
 regl.frame(() => {
+    // TODO - we probably don't want these to share the same vertices?
     setupQuad(() => {
         regl.draw()
         updateFractal()

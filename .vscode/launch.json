@@ -32,18 +32,11 @@
             ]
         },
         {
-            "name": "Launch Brave against localhost",
-            "type": "chrome",
+            "name": "Launch Firefox",
+            "type": "firefox",
             "request": "launch",
-            "url": "http://localhost:8080/",
-            "sourceMaps": true,
-            "webRoot": "${workspaceFolder}",
-            "runtimeExecutable": "/snap/bin/brave",
-            "runtimeArgs": [
-                "--remote-debugging-port=9222",
-                "--user-data-dir=/home/user/devcaches/.brave-cache/",
-                "--incognito"
-            ]
+            "reAttach": true,
+            "url": "http://0.0.0.0:8080",
         }
     ]
 }

@@ -32,7 +32,7 @@ module.exports = {
         extensions: ['.tsx', '.ts', '.js', '.png'],
     },
     output: {
-        filename: '[name].bundle.js',
+        filename: '[name].[contenthash].js',
         path: path.resolve(__dirname, 'docs'),
     },
 };

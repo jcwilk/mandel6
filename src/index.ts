@@ -1,7 +1,8 @@
-import _ from 'lodash';
+//import _ from 'lodash';
 import './style.css';
-import Buttons from './buttons.png';
-import REGL from "regl";
+//import Buttons from './buttons.png';
+import REGL, { Framebuffer } from 'regl'
+import { Resizer } from './resizer'
 
 const regl = REGL({
     // TODO: why do these seem to do nothing?
@@ -13,26 +14,31 @@ const RADIUS = 2048 // TODO - make this not just square
 const MAX_ITERATIONS = 128
 const INITIAL_CONDITIONS = (Array(RADIUS * RADIUS * 4)).fill(0)
 
-const state = (Array(2)).fill(0).map(() =>
-    regl.framebuffer({
-        color: regl.texture({
-            radius: RADIUS,
-            data: INITIAL_CONDITIONS,
-            wrap: 'repeat'
-        }),
-        // semingly no effect (yet?)
-        // colorFormat: 'rgba32f',
-        // colorType: 'float',
-        depthStencil: false
-    }))
+let state: Array<REGL.Framebuffer2D>;
+
+const resetState = () => {
+    state = (Array(2)).fill(0).map(() =>
+        regl.framebuffer({
+            color: regl.texture({
+                radius: RADIUS,
+                data: INITIAL_CONDITIONS,
+                wrap: 'repeat'
+            }),
+            // semingly no effect (yet?)
+            // colorFormat: 'rgba32f',
+            // colorType: 'float',
+            depthStencil: false
+        }))
+}
+resetState();
 
 const updateFractal = regl({
     frag: `
     precision mediump float;
 
     varying vec2 uv;
+    varying vec2 coords;
     uniform sampler2D prevState;
-    uniform int mandelRes;
 
     void main()
     {
@@ -41,7 +47,7 @@ const updateFractal = regl({
         float y = data.y+data.y;
         int i = int(data.z*${MAX_ITERATIONS}.);
         float signs = data.a;
-        vec2 c = (uv-vec2(0.5))*4.;
+        vec2 c = coords;
 
         if (i == 0) {
             x = 0.;
@@ -59,7 +65,7 @@ const updateFractal = regl({
 
         if (i >= ${MAX_ITERATIONS}) {
             i = ${MAX_ITERATIONS};
-        } else if (abs(x) < 2. && abs(y) < 2.) {
+        } else if (x*x + y*y < 4.) {
             float zx = x*x - y*y + c.x;
             y = (x+x)*y + c.y;
             x = zx;
@@ -74,11 +80,7 @@ const updateFractal = regl({
         gl_FragColor = vec4(abs(x)/2.,abs(y)/2.,float(i)/${MAX_ITERATIONS}.,signs);
     }`,
 
-    framebuffer: ({ tick }) => state[(tick + 1) % 2],
-
-    uniforms: {
-        mandelRes: RADIUS
-    },
+    framebuffer: ({ tick }, props) => (props as any).dataBuffers[(tick + 1) % 2],
 })
 
 const setupQuad = regl({
@@ -86,6 +88,7 @@ const setupQuad = regl({
   precision mediump float;
   uniform sampler2D prevState;
   varying vec2 uv;
+  varying vec2 coords;
   void main() {
     float state = texture2D(prevState, uv).z;
     gl_FragColor = vec4(vec3(state), 1);
@@ -95,31 +98,57 @@ const setupQuad = regl({
   precision mediump float;
   attribute vec2 position;
   varying vec2 uv;
+  varying vec2 coords;
+  uniform float graphWidth;
+  uniform float graphHeight;
+  uniform float graphX;
+  uniform float graphY;
   void main() {
-    uv = 0.5 * (position + 1.0);
+    uv = (position + 1.) / 2.;
+    coords = vec2(position.x * graphWidth / 2. + graphX, position.y * graphHeight / 2. + graphY);
     gl_Position = vec4(position, 0, 1);
   }`,
 
     attributes: {
-        position: [-4, -4, 4, -4, 0, 4]
+        position: regl.buffer([
+            [-1, -1],
+            [1, -1],
+            [-1, 1],
+            [1, 1]
+        ])
     },
 
     uniforms: {
-        prevState: ({ tick }) => state[tick % 2]
+        prevState: ({ tick }, props) => (props as any).dataBuffers[tick % 2],
+        graphWidth: (context, props) => (props as any).graphWidth,
+        graphHeight: (context, props) => (props as any).graphHeight,
+        graphX: -.5,
+        graphY: 0
     },
 
     depth: { enable: false },
 
-    count: 3,
+    count: 4,
 
-    // TODO
-    //primitive: "triangle fan"
+    primitive: 'triangle strip'
 })
 
-regl.frame(() => {
-    // TODO - we probably don't want these to share the same vertices?
-    setupQuad(() => {
-        regl.draw()
-        updateFractal()
+
+
+document.addEventListener('DOMContentLoaded', function () {
+    const resizer = new Resizer(window, 2);
+
+    resizer.onUpdate = resetState;
+
+    regl.frame(() => {
+        setupQuad({
+            graphWidth: resizer.graphWidth,
+            graphHeight: resizer.graphHeight,
+            dataBuffers: state
+        }, () => {
+            regl.draw()
+            updateFractal({ dataBuffers: state }) // wonder why this isn't sharing the same props...
+        })
     })
-})
+}, false);
+

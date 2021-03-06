@@ -1,8 +1,8 @@
 //import _ from 'lodash';
-import './style.css';
-//import Buttons from './buttons.png';
+import './index.css';
 import REGL, { Framebuffer } from 'regl'
 import { Resizer } from './resizer'
+import { Controls } from './controls'
 
 const regl = REGL({
     // TODO: why do these seem to do nothing?
@@ -133,12 +133,20 @@ const setupQuad = regl({
     primitive: 'triangle strip'
 })
 
-
-
 document.addEventListener('DOMContentLoaded', function () {
+    const controls = new Controls(document);
     const resizer = new Resizer(window, 2);
 
-    resizer.onUpdate = resetState;
+    const onResize = () => {
+        resetState();
+        if (resizer.isPortrait()) {
+            controls.layout = 'portrait';
+        } else {
+            controls.layout = 'landscape';
+        }
+    }
+    onResize();
+    resizer.onResize = onResize;
 
     regl.frame(() => {
         setupQuad({

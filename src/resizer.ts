@@ -5,7 +5,7 @@ export class Resizer {
     graphWidth: number = 0;
     graphHeight: number = 0;
     _screenSize: number = 0;
-    onUpdate: undefined | Function;
+    onResize: undefined | Function;
 
     constructor(container: Window, screenSize: number) {
         this.container = container;
@@ -23,7 +23,7 @@ export class Resizer {
             this.graphHeight = this.screenSize;
         }
 
-        if (this.onUpdate) this.onUpdate();
+        if (this.onResize) this.onResize();
     }
 
     set screenSize(screenSize: number) {

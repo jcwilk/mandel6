@@ -11,9 +11,10 @@ const regl = REGL({
 });
 
 const RADIUS = 2048 // TODO - make this not just square
-const MAX_ITERATIONS = 128
+const MAX_ITERATIONS = 128;
 const INITIAL_CONDITIONS = (Array(RADIUS * RADIUS * 4)).fill(0)
 const FIRST_ITERATIONS = 10;
+const COLOR_CYCLES = 5;
 
 let state: Array<REGL.Framebuffer2D>;
 
@@ -116,9 +117,25 @@ const setupQuad = regl({
   uniform sampler2D prevState;
   varying vec2 uv;
   varying vec2 coords;
+
+  vec3 hsv2rgb(vec3 c) {
+    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+  }
+
   void main() {
-    float state = texture2D(prevState, uv).z;
-    gl_FragColor = vec4(vec3(state), 1);
+    float state = texture2D(prevState, uv).z * ${MAX_ITERATIONS}.;
+    float scaled=log(float(state))/log(${MAX_ITERATIONS}.);
+    gl_FragColor = vec4(
+        hsv2rgb(
+            vec3(
+                mod(scaled, 1./${COLOR_CYCLES}.) * ${COLOR_CYCLES}.,
+                .2+scaled*1.5, // tops out at 1
+                scaled*1.5
+            )
+        ), 1.0
+    );
   }`,
 
     vert: `

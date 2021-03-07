@@ -40,6 +40,7 @@ export class Controls {
         this.buttons = controlNames.map((name, index) => {
             const button = document.createElement("div");
             button.className = `button button-${name}`;
+            button.setAttribute('draggable', 'false');
 
             const state: ControlState = {
                 element: button,

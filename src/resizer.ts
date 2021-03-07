@@ -1,3 +1,30 @@
+const debounce = (fn: Function, delay: number) => {
+    let waiting = false;
+    let pending = false;
+
+    let expire = () => {
+        if (pending) {
+            pending = false;
+            setTimeout(expire, delay);
+
+            fn();
+        } else {
+            waiting = false;
+        }
+    }
+
+    return () => {
+        if (waiting) {
+            pending = true;
+        } else {
+            waiting = true;
+            setTimeout(expire, delay);
+
+            fn();
+        }
+    }
+}
+
 export class Resizer {
     container: Window;
 
@@ -11,10 +38,10 @@ export class Resizer {
         this.container = container;
         this.screenSize = screenSize; // implicitly calls onResize
         const self = this;
-        container.addEventListener("resize", () => {
+        container.addEventListener("resize", debounce(() => {
             self.update();
             if (this.onResize) this.onResize();
-        });
+        }, 500));
     }
 
     update(): void {

@@ -13,6 +13,7 @@ const regl = REGL({
 const RADIUS = 2048 // TODO - make this not just square
 const MAX_ITERATIONS = 128
 const INITIAL_CONDITIONS = (Array(RADIUS * RADIUS * 4)).fill(0)
+const FIRST_ITERATIONS = 10;
 
 let state: Array<REGL.Framebuffer2D>;
 
@@ -48,11 +49,13 @@ const updateFractal = regl({
         int i = int(data.z*${MAX_ITERATIONS}.);
         float signs = data.a;
         vec2 c = coords;
+        int iterTodo = 1;
 
         if (i == 0) {
             x = 0.;
             y = 0.;
             signs = 0.;
+            iterTodo = int(min(${MAX_ITERATIONS}.,${FIRST_ITERATIONS}.));
         }
 
         if (signs > .5) {
@@ -65,19 +68,43 @@ const updateFractal = regl({
 
         if (i >= ${MAX_ITERATIONS}) {
             i = ${MAX_ITERATIONS};
-        } else if (x*x + y*y < 4.) {
-            float zx = x*x - y*y + c.x;
-            y = (x+x)*y + c.y;
-            x = zx;
-            i+= 1;
         } else {
-            x = 2.;
-            y = 2.;
-        }
+            if (i == 0) {
+                for(int j=0;j<${FIRST_ITERATIONS};j++) {
+                    //COPY OF BELOW!
+                    if (x*x + y*y < 4.) {
+                        float zx = x*x - y*y + c.x;
+                        y = (x+x)*y + c.y;
+                        x = zx;
+                        i++;
+                    } else {
+                        x = 2.;
+                        y = 2.;
+                    }
+                }
+            } else {
+                //COPY OF ABOVE!
+                if (x*x + y*y < 4.) {
+                    float zx = x*x - y*y + c.x;
+                    y = (x+x)*y + c.y;
+                    x = zx;
+                    i++;
+                } else {
+                    x = 2.;
+                    y = 2.;
+                }
+            }
+        } 
         signs = 0.;
-        if (x < 0.) signs+=.6;
-        if (y < 0.) signs+=.3;
-        gl_FragColor = vec4(abs(x)/2.,abs(y)/2.,float(i)/${MAX_ITERATIONS}.,signs);
+        if (x < 0.) {
+            signs+=.6;
+            x=-x;
+        }
+        if (y < 0.) {
+            signs+=.3;
+            y=-y;
+        }
+        gl_FragColor = vec4(x/2.,y/2.,float(i)/${MAX_ITERATIONS}.,signs);
     }`,
 
     framebuffer: ({ tick }, props) => (props as any).dataBuffers[(tick + 1) % 2],
@@ -122,8 +149,8 @@ const setupQuad = regl({
         prevState: ({ tick }, props) => (props as any).dataBuffers[tick % 2],
         graphWidth: (context, props) => (props as any).graphWidth,
         graphHeight: (context, props) => (props as any).graphHeight,
-        graphX: -.5,
-        graphY: 0
+        graphX: (context, props) => (props as any).graphX,
+        graphY: (context, props) => (props as any).graphY
     },
 
     depth: { enable: false },
@@ -134,7 +161,12 @@ const setupQuad = regl({
 })
 
 document.addEventListener('DOMContentLoaded', function () {
+    let screenSize = 2;
+    let graphX = -0.5;
+    let graphY = 0;
+
     const controls = new Controls(document);
+
     const resizer = new Resizer(window, 2);
 
     const onResize = () => {
@@ -149,9 +181,38 @@ document.addEventListener('DOMContentLoaded', function () {
     resizer.onResize = onResize;
 
     regl.frame(() => {
+        if (controls.isDown('plus')) {
+            screenSize *= .95;
+            resizer.screenSize = screenSize;
+            resetState();
+        }
+        if (controls.isDown('minus')) {
+            screenSize /= .95;
+            resizer.screenSize = screenSize;
+            resetState();
+        }
+        if (controls.isDown('up')) {
+            graphY += .01 * screenSize;
+            resetState();
+        }
+        if (controls.isDown('down')) {
+            graphY -= .01 * screenSize;
+            resetState();
+        }
+        if (controls.isDown('left')) {
+            graphX -= .01 * screenSize;
+            resetState();
+        }
+        if (controls.isDown('right')) {
+            graphX += .01 * screenSize;
+            resetState();
+        }
+
         setupQuad({
             graphWidth: resizer.graphWidth,
             graphHeight: resizer.graphHeight,
+            graphX: graphX,
+            graphY: graphY,
             dataBuffers: state
         }, () => {
             regl.draw()

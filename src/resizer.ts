@@ -11,7 +11,10 @@ export class Resizer {
         this.container = container;
         this.screenSize = screenSize; // implicitly calls onResize
         const self = this;
-        container.addEventListener("resize", () => self.update());
+        container.addEventListener("resize", () => {
+            self.update();
+            if (this.onResize) this.onResize();
+        });
     }
 
     update(): void {
@@ -22,8 +25,6 @@ export class Resizer {
             this.graphWidth = (this.screenSize * this.container.innerWidth) / this.container.innerHeight;
             this.graphHeight = this.screenSize;
         }
-
-        if (this.onResize) this.onResize();
     }
 
     set screenSize(screenSize: number) {

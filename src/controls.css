@@ -41,6 +41,7 @@
     height: 100%;
     position: absolute;
     cursor: pointer;
+    touch-action: none;
 }
 
 /* resizing sprites https://stackoverflow.com/a/18578251 */

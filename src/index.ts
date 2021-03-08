@@ -4,6 +4,22 @@ import REGL, { Framebuffer } from 'regl'
 import { Resizer } from './resizer'
 import { Controls } from './controls'
 
+const debounceTailOnly = (fn: Function, delay: number) => {
+    let waiting = false;
+
+    let expire = () => {
+        waiting = false;
+        fn();
+    }
+
+    return () => {
+        if (!waiting) {
+            waiting = true;
+            setTimeout(expire, delay);
+        }
+    }
+}
+
 const regl = REGL({
     // TODO: why do these seem to do nothing?
     // extensions: ['OES_texture_float'],
@@ -18,7 +34,7 @@ const COLOR_CYCLES = 5;
 
 let state: Array<REGL.Framebuffer2D>;
 
-const resetState = () => {
+const rebuildBuffers = () => {
     state = (Array(2)).fill(0).map(() =>
         regl.framebuffer({
             color: regl.texture({
@@ -32,7 +48,6 @@ const resetState = () => {
             depthStencil: false
         }))
 }
-resetState();
 
 const updateFractal = regl({
     frag: `
@@ -178,51 +193,87 @@ const setupQuad = regl({
 })
 
 document.addEventListener('DOMContentLoaded', function () {
-    let screenSize = 2;
+    const urlParams = new URLSearchParams(window.location.search);
+    const myParam = urlParams.get('myParam');
+
     let graphX = -0.5;
     let graphY = 0;
+    let graphZoom = 1;
+
+    let inX = urlParams.get('x');
+    let inY = urlParams.get('y');
+    let inZ = urlParams.get('z');
+
+    if (inX && inY && inZ) {
+        graphX = parseFloat(inX);
+        graphY = parseFloat(inY);
+        graphZoom = parseFloat(inZ);
+    }
 
     const controls = new Controls(document);
 
-    const resizer = new Resizer(window, 2);
+    const resizer = new Resizer(window, 2 / graphZoom);
 
     const onResize = () => {
-        resetState();
         if (resizer.isPortrait()) {
             controls.layout = 'portrait';
         } else {
             controls.layout = 'landscape';
         }
+
+        rebuildBuffers();
     }
     onResize();
     resizer.onResize = onResize;
 
+    const updateQueryParams = debounceTailOnly(() => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('x', graphX.toString());
+        url.searchParams.set('y', graphY.toString());
+        url.searchParams.set('z', graphZoom.toString());
+        window.history.pushState({}, '', url.toString());
+    }, 1000);
+
+    const updateGraphParams = () => {
+        updateQueryParams();
+        rebuildBuffers();
+    }
+
+    let seenFocus = false;
     regl.frame(() => {
+        // It burns a lot of juice running this thing so cool it while it's not in the very foreground
+        if (document.hasFocus() && document.visibilityState == "visible") {
+            seenFocus = true;
+        } else if (seenFocus) {
+            // only skip rendering if focus has been confirmed at least once
+            return;
+        }
+
         if (controls.isDown('plus')) {
-            screenSize *= .95;
-            resizer.screenSize = screenSize;
-            resetState();
+            graphZoom *= 1.05;
+            resizer.screenSize = 2 / graphZoom;
+            updateGraphParams();
         }
         if (controls.isDown('minus')) {
-            screenSize /= .95;
-            resizer.screenSize = screenSize;
-            resetState();
+            graphZoom /= 1.05;
+            resizer.screenSize = 2 / graphZoom;
+            updateGraphParams();
         }
         if (controls.isDown('up')) {
-            graphY += .01 * screenSize;
-            resetState();
+            graphY += .05 / graphZoom;
+            updateGraphParams();
         }
         if (controls.isDown('down')) {
-            graphY -= .01 * screenSize;
-            resetState();
+            graphY -= .05 / graphZoom;
+            updateGraphParams();
         }
         if (controls.isDown('left')) {
-            graphX -= .01 * screenSize;
-            resetState();
+            graphX -= .05 / graphZoom;
+            updateGraphParams();
         }
         if (controls.isDown('right')) {
-            graphX += .01 * screenSize;
-            resetState();
+            graphX += .05 / graphZoom;
+            updateGraphParams();
         }
 
         setupQuad({

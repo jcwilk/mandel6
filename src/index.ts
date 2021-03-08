@@ -22,14 +22,14 @@ const debounceTailOnly = (fn: Function, delay: number) => {
 
 const regl = REGL({
     // TODO: why do these seem to do nothing?
-    // extensions: ['OES_texture_float'],
+    extensions: ['OES_texture_float'],
     // optionalExtensions: ['oes_texture_float_linear'],
 });
 
 const RADIUS = 2048 // TODO - make this not just square
-const MAX_ITERATIONS = 128;
+const MAX_ITERATIONS = 1000;
 const INITIAL_CONDITIONS = (Array(RADIUS * RADIUS * 4)).fill(0)
-const FIRST_ITERATIONS = 10;
+const FIRST_ITERATIONS = 1;
 const COLOR_CYCLES = 5;
 
 let state: Array<REGL.Framebuffer2D>;
@@ -40,11 +40,10 @@ const rebuildBuffers = () => {
             color: regl.texture({
                 radius: RADIUS,
                 data: INITIAL_CONDITIONS,
-                wrap: 'repeat'
+                wrap: 'repeat',
+                format: 'rgba',
+                type: 'float'
             }),
-            // semingly no effect (yet?)
-            // colorFormat: 'rgba32f',
-            // colorType: 'float',
             depthStencil: false
         }))
 }
@@ -56,6 +55,10 @@ const updateFractal = regl({
     varying vec2 uv;
     varying vec2 coords;
     uniform sampler2D prevState;
+    uniform float graphWidth;
+    uniform float graphHeight;
+    uniform float graphX;
+    uniform float graphY;
 
     void main()
     {
@@ -64,7 +67,13 @@ const updateFractal = regl({
         float y = data.y+data.y;
         int i = int(data.z*${MAX_ITERATIONS}.);
         float signs = data.a;
-        vec2 c = coords;
+
+        //coords = vec2(position.x * graphWidth / 2. + graphX, position.y * graphHeight / 2. + graphY);
+        //gl_Position = vec4(position, 0, 1);
+
+        vec2 c = (uv - .5) * vec2(graphWidth, graphHeight) + vec2(graphX, graphY);
+
+        //vec2 c = coords;
         int iterTodo = 1;
 
         if (i == 0) {

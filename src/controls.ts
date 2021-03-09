@@ -8,6 +8,10 @@ type ControlState = {
     isDown: boolean
 }
 
+const defer = (fn: Function) => {
+    setTimeout(fn, 1);
+}
+
 export class Controls {
     parent: HTMLDivElement;
     buttons: ControlState[];

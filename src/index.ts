@@ -21,17 +21,28 @@ const debounceTailOnly = (fn: Function, delay: number) => {
 }
 
 const regl = REGL({
-    // TODO: why do these seem to do nothing?
     extensions: ['OES_texture_float'],
-    // optionalExtensions: ['oes_texture_float_linear'],
+    optionalExtensions: ['oes_texture_float_linear'],
 });
 
-const RADIUS = 2048 // TODO - make this not just square
-const MAX_ITERATIONS = 1000;
-const INITIAL_CONDITIONS = (Array(RADIUS * RADIUS * 4)).fill(0)
-const FIRST_ITERATIONS = 1;
-const COLOR_CYCLES = 5;
+// TODO - make this not just square
+// leaving it as a square generally works fine, however for the best efficiency ratio in terms of visual
+// quality to computation time we would want this to be either exactly matching the screen resolution or
+// at least proportional. Leaving it square is the simplest option and requires the least javascript cpu
+// time... Ideally we'd figure out how to give it a new sized texture array without having to iterate over it.
+const RADIUS = 2048
 
+// Maximum 32bit int size... But can a float
+const MAX_ITERATIONS = 16777216;
+
+// used for scaling iterations into colors
+const COLOR_CYCLES = 3;
+const ITERATION_CEILING_SCALE = 500;
+
+// this is how many iterations it does in the first frame after clearing the buffer
+const FIRST_ITERATIONS = 100;
+
+const INITIAL_CONDITIONS = (Array(RADIUS * RADIUS * 3)).fill(0)
 let state: Array<REGL.Framebuffer2D>;
 
 const rebuildBuffers = () => {
@@ -41,54 +52,43 @@ const rebuildBuffers = () => {
                 radius: RADIUS,
                 data: INITIAL_CONDITIONS,
                 wrap: 'repeat',
-                format: 'rgba',
-                type: 'float'
+                format: 'rgb', // there's room to add a whole extra channel here wew!
+                type: 'float',
+
+                // These two seemingly have no effect on the texture <-> texture loop since the sizes match (good)
+                // but for rendering the texture to the screen it means it smooths out the noise a bit (also good)
+                mag: 'linear',
+                min: 'linear'
             }),
             depthStencil: false
         }))
 }
+rebuildBuffers();
 
 const updateFractal = regl({
     frag: `
     precision mediump float;
 
     varying vec2 uv;
-    varying vec2 coords;
     uniform sampler2D prevState;
     uniform float graphWidth;
     uniform float graphHeight;
     uniform float graphX;
     uniform float graphY;
+    uniform bool resetBuffer;
 
     void main()
     {
         vec4 data = texture2D(prevState, uv);
-        float x = data.x+data.x;
-        float y = data.y+data.y;
-        int i = int(data.z*${MAX_ITERATIONS}.);
-        float signs = data.a;
-
-        //coords = vec2(position.x * graphWidth / 2. + graphX, position.y * graphHeight / 2. + graphY);
-        //gl_Position = vec4(position, 0, 1);
-
+        float x = data.x;
+        float y = data.y;
+        int i = int(data.z);
         vec2 c = (uv - .5) * vec2(graphWidth, graphHeight) + vec2(graphX, graphY);
 
-        //vec2 c = coords;
-        int iterTodo = 1;
-
-        if (i == 0) {
+        if (resetBuffer || i == 0) {
             x = 0.;
             y = 0.;
-            signs = 0.;
-            iterTodo = int(min(${MAX_ITERATIONS}.,${FIRST_ITERATIONS}.));
-        }
-
-        if (signs > .5) {
-            x = -x;
-            signs-=.5;
-        }
-        if (signs > .25) {
-            y = -y;
+            i = 0;
         }
 
         if (i >= ${MAX_ITERATIONS}) {
@@ -119,20 +119,15 @@ const updateFractal = regl({
                     y = 2.;
                 }
             }
-        } 
-        signs = 0.;
-        if (x < 0.) {
-            signs+=.6;
-            x=-x;
         }
-        if (y < 0.) {
-            signs+=.3;
-            y=-y;
-        }
-        gl_FragColor = vec4(x/2.,y/2.,float(i)/${MAX_ITERATIONS}.,signs);
+        gl_FragColor = vec4(x,y,float(i),1.);
     }`,
 
     framebuffer: ({ tick }, props) => (props as any).dataBuffers[(tick + 1) % 2],
+
+    uniforms: {
+        prevState: ({ tick }, props) => (props as any).dataBuffers[tick % 2]
+    }
 })
 
 const setupQuad = regl({
@@ -149,8 +144,14 @@ const setupQuad = regl({
   }
 
   void main() {
-    float state = texture2D(prevState, uv).z * ${MAX_ITERATIONS}.;
-    float scaled=log(float(state))/log(${MAX_ITERATIONS}.);
+    vec4 state = texture2D(prevState, uv);
+    if (abs(state.x) < 2. && abs(state.y) < 2.) {
+        gl_FragColor = vec4(0., 0., 0., 1.);
+        return;
+    }
+
+    float iterations = texture2D(prevState, uv).z;
+    float scaled=log(float(iterations))/log(${ITERATION_CEILING_SCALE}.);
     gl_FragColor = vec4(
         hsv2rgb(
             vec3(
@@ -166,14 +167,8 @@ const setupQuad = regl({
   precision mediump float;
   attribute vec2 position;
   varying vec2 uv;
-  varying vec2 coords;
-  uniform float graphWidth;
-  uniform float graphHeight;
-  uniform float graphX;
-  uniform float graphY;
   void main() {
     uv = (position + 1.) / 2.;
-    coords = vec2(position.x * graphWidth / 2. + graphX, position.y * graphHeight / 2. + graphY);
     gl_Position = vec4(position, 0, 1);
   }`,
 
@@ -187,11 +182,12 @@ const setupQuad = regl({
     },
 
     uniforms: {
-        prevState: ({ tick }, props) => (props as any).dataBuffers[tick % 2],
+        prevState: ({ tick }, props) => (props as any).dataBuffers[(tick + 1) % 2],
         graphWidth: (context, props) => (props as any).graphWidth,
         graphHeight: (context, props) => (props as any).graphHeight,
         graphX: (context, props) => (props as any).graphX,
-        graphY: (context, props) => (props as any).graphY
+        graphY: (context, props) => (props as any).graphY,
+        resetBuffer: (context, props) => (props as any).resetBuffer
     },
 
     depth: { enable: false },
@@ -204,14 +200,14 @@ const setupQuad = regl({
 document.addEventListener('DOMContentLoaded', function () {
     const urlParams = new URLSearchParams(window.location.search);
     const myParam = urlParams.get('myParam');
+    let inX = urlParams.get('x');
+    let inY = urlParams.get('y');
+    let inZ = urlParams.get('z');
 
     let graphX = -0.5;
     let graphY = 0;
     let graphZoom = 1;
-
-    let inX = urlParams.get('x');
-    let inY = urlParams.get('y');
-    let inZ = urlParams.get('z');
+    let resetBuffer = false;
 
     if (inX && inY && inZ) {
         graphX = parseFloat(inX);
@@ -230,7 +226,7 @@ document.addEventListener('DOMContentLoaded', function () {
             controls.layout = 'landscape';
         }
 
-        rebuildBuffers();
+        resetBuffer = true;
     }
     onResize();
     resizer.onResize = onResize;
@@ -245,7 +241,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const updateGraphParams = () => {
         updateQueryParams();
-        rebuildBuffers();
+        resetBuffer = true;
     }
 
     let seenFocus = false;
@@ -290,11 +286,18 @@ document.addEventListener('DOMContentLoaded', function () {
             graphHeight: resizer.graphHeight,
             graphX: graphX,
             graphY: graphY,
-            dataBuffers: state
+            dataBuffers: state,
+            resetBuffer: resetBuffer
         }, () => {
-            regl.draw()
-            updateFractal({ dataBuffers: state }) // wonder why this isn't sharing the same props...
+            // wonder why this isn't sharing the same props...
+            // maybe because uniforms, context are shared but props are not?
+            // the overlapping framebuffers are a bit of a mess but it works for now
+            // it may make sense to try to separate these three entities (setupQuad, updateFractal, draw)?
+            updateFractal({ dataBuffers: state });
+            regl.draw();
         })
+
+        resetBuffer = false;
     })
 }, false);
 

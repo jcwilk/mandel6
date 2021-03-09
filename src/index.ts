@@ -42,7 +42,7 @@ const ITERATION_CEILING_SCALE = 500;
 // this is how many iterations it does in the first frame after clearing the buffer
 const FIRST_ITERATIONS = 100;
 
-const INITIAL_CONDITIONS = (Array(RADIUS * RADIUS * 3)).fill(0)
+const INITIAL_CONDITIONS = (Array(RADIUS * RADIUS * 4)).fill(0)
 let state: Array<REGL.Framebuffer2D>;
 
 const rebuildBuffers = () => {
@@ -52,7 +52,7 @@ const rebuildBuffers = () => {
                 radius: RADIUS,
                 data: INITIAL_CONDITIONS,
                 wrap: 'repeat',
-                format: 'rgb', // there's room to add a whole extra channel here wew!
+                format: 'rgba', // there's room to add a whole extra channel here wew!
                 type: 'float',
 
                 // These two seemingly have no effect on the texture <-> texture loop since the sizes match (good)

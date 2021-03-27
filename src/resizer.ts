@@ -29,6 +29,8 @@ export class Resizer {
     container: Window;
 
     // NB: These get set indirectly in the initializer, `0` is just compilershutup
+    screenWidth: number = 0;
+    screenHeight: number = 0;
     graphWidth: number = 0;
     graphHeight: number = 0;
     _screenSize: number = 0;
@@ -36,20 +38,23 @@ export class Resizer {
 
     constructor(container: Window, screenSize: number) {
         this.container = container;
-        this.screenSize = screenSize; // implicitly calls onResize
+        this.screenSize = screenSize; // implicitly calls update()
         const self = this;
         container.addEventListener("resize", debounce(() => {
             self.update();
-            if (this.onResize) this.onResize();
+            if (self.onResize) self.onResize();
         }, 500));
     }
 
     update(): void {
+        this.screenWidth = this.container.innerWidth;
+        this.screenHeight = this.container.innerHeight;
+
         if (this.isPortrait()) {
             this.graphWidth = this.screenSize;
-            this.graphHeight = (this.screenSize * this.container.innerHeight) / this.container.innerWidth;
+            this.graphHeight = (this.screenSize * this.screenHeight) / this.screenWidth;
         } else {
-            this.graphWidth = (this.screenSize * this.container.innerWidth) / this.container.innerHeight;
+            this.graphWidth = (this.screenSize * this.screenWidth) / this.screenHeight;
             this.graphHeight = this.screenSize;
         }
     }
@@ -64,6 +69,6 @@ export class Resizer {
     }
 
     isPortrait(): boolean {
-        return this.container.innerWidth < this.container.innerHeight;
+        return this.screenWidth < this.screenHeight;
     }
 }

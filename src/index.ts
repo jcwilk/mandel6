@@ -32,7 +32,7 @@ const regl = REGL({
 // time... Ideally we'd figure out how to give it a new sized texture array without having to iterate over it.
 const RADIUS = 2048
 
-// Maximum 32bit int size... But can a float
+// Alleged maximum int that can be converted back and forth to a float, tricky to test though...
 const MAX_ITERATIONS = 16777216;
 
 // used for scaling iterations into colors
@@ -42,29 +42,32 @@ const ITERATION_CEILING_SCALE = 500;
 // this is how many iterations it does in the first frame after clearing the buffer
 const FIRST_ITERATIONS = 100;
 
-const INITIAL_CONDITIONS = (Array(RADIUS * RADIUS * 4)).fill(0)
 let state: Array<REGL.Framebuffer2D>;
 
 const rebuildBuffers = () => {
     state = (Array(2)).fill(0).map(() =>
         regl.framebuffer({
             color: regl.texture({
-                radius: RADIUS,
-                data: INITIAL_CONDITIONS,
+                width: RADIUS,
+                height: RADIUS,
                 wrap: 'repeat',
+
+                // note that firefox and mobile refused to run it with just 'rgb'
                 format: 'rgba', // there's room to add a whole extra channel here wew!
                 type: 'float',
 
-                // These two seemingly have no effect on the texture <-> texture loop since the sizes match (good)
-                // but for rendering the texture to the screen it means it smooths out the noise a bit (also good)
-                mag: 'linear',
-                min: 'linear'
+                // These two are nice when there's not a 1:1 between the orbit texture and the render texture.
+                // However, since we're carefully maintaining that ratio these are no longer useful.
+                // mag: 'linear',
+                // min: 'linear'
             }),
             depthStencil: false
         }))
 }
 rebuildBuffers();
 
+
+// TODO: need to restrict reading and writing of orbit data to only area of screenWidth x screenHeight within buffer
 const updateFractal = regl({
     frag: `
     precision mediump float;
@@ -73,17 +76,24 @@ const updateFractal = regl({
     uniform sampler2D prevState;
     uniform float graphWidth;
     uniform float graphHeight;
+    uniform float screenWidth;
+    uniform float screenHeight;
     uniform float graphX;
     uniform float graphY;
     uniform bool resetBuffer;
 
     void main()
     {
+        vec2 screenRegion = vec2(screenWidth/${RADIUS}., screenHeight/${RADIUS}.);
+        if (uv.x > screenRegion.x || uv.y > screenRegion.y) {
+            gl_FragColor = vec4(0.,0.,0.,1.);
+            return;
+        }
         vec4 data = texture2D(prevState, uv);
         float x = data.x;
         float y = data.y;
         int i = int(data.z);
-        vec2 c = (uv - .5) * vec2(graphWidth, graphHeight) + vec2(graphX, graphY);
+        vec2 c = (uv / screenRegion - .5) * vec2(graphWidth, graphHeight) + vec2(graphX, graphY);
 
         if (resetBuffer || i == 0) {
             x = 0.;
@@ -134,6 +144,8 @@ const setupQuad = regl({
     frag: `
   precision mediump float;
   uniform sampler2D prevState;
+  uniform float screenWidth;
+  uniform float screenHeight;
   varying vec2 uv;
   varying vec2 coords;
 
@@ -144,13 +156,15 @@ const setupQuad = regl({
   }
 
   void main() {
-    vec4 state = texture2D(prevState, uv);
-    if (abs(state.x) < 2. && abs(state.y) < 2.) {
+    //vec2 screenRegion = vec2(1.,1.);
+    vec2 screenRegion = vec2(screenWidth/${RADIUS}., screenHeight/${RADIUS}.);
+    vec4 state = texture2D(prevState, uv * screenRegion);
+    if (state.x*state.x + state.y*state.y < 4.) {
         gl_FragColor = vec4(0., 0., 0., 1.);
         return;
     }
 
-    float iterations = texture2D(prevState, uv).z;
+    float iterations = texture2D(prevState, uv * screenRegion).z;
     float scaled=log(float(iterations))/log(${ITERATION_CEILING_SCALE}.);
     gl_FragColor = vec4(
         hsv2rgb(
@@ -187,6 +201,8 @@ const setupQuad = regl({
         graphHeight: (context, props) => (props as any).graphHeight,
         graphX: (context, props) => (props as any).graphX,
         graphY: (context, props) => (props as any).graphY,
+        screenWidth: (context, props) => (props as any).screenWidth,
+        screenHeight: (context, props) => (props as any).screenHeight,
         resetBuffer: (context, props) => (props as any).resetBuffer
     },
 
@@ -199,7 +215,6 @@ const setupQuad = regl({
 
 document.addEventListener('DOMContentLoaded', function () {
     const urlParams = new URLSearchParams(window.location.search);
-    const myParam = urlParams.get('myParam');
     let inX = urlParams.get('x');
     let inY = urlParams.get('y');
     let inZ = urlParams.get('z');
@@ -225,6 +240,10 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             controls.layout = 'landscape';
         }
+
+        // these need to be a power of two
+        // state[0].resize(w,h);
+        // state[1].resize(w,h);
 
         resetBuffer = true;
     }
@@ -284,6 +303,8 @@ document.addEventListener('DOMContentLoaded', function () {
         setupQuad({
             graphWidth: resizer.graphWidth,
             graphHeight: resizer.graphHeight,
+            screenWidth: resizer.screenWidth,
+            screenHeight: resizer.screenHeight,
             graphX: graphX,
             graphY: graphY,
             dataBuffers: state,

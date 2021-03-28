@@ -43,7 +43,7 @@ export class Controls {
 
         this.buttons = controlNames.map((name, index) => {
             const button = document.createElement("div");
-            button.className = `button button-${name}`;
+            button.className = `button button-${name} button-navigation`;
             button.setAttribute('draggable', 'false');
 
             const state: ControlState = {
@@ -69,6 +69,20 @@ export class Controls {
 
             return state;
         });
+
+        const githubContainer = document.createElement("div");
+        githubContainer.id = 'github-container';
+        this.parent.appendChild(githubContainer);
+
+        const githubSizer = document.createElement("div");
+        githubSizer.className = 'button-sizer sizer-github';
+        githubContainer.appendChild(githubSizer);
+
+        const githubButton = document.createElement("div");
+        githubButton.className = 'button button-github';
+        githubSizer.appendChild(githubButton);
+
+        githubButton.addEventListener("click", () => { document.location.href = "https://github.com/jcwilk/mandel4/blob/master/src/index.ts" })
     }
 
     isDown(name: Control) {

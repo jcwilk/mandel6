@@ -286,8 +286,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
         lastTime = thisTime;
 
-        console.log(dTime);
-
         // It burns a lot of juice running this thing so cool it while it's not in the very foreground
         if (document.hasFocus() && document.visibilityState == "visible") {
             seenFocus = true;

@@ -3,6 +3,7 @@ import './index.css';
 import REGL, { Framebuffer } from 'regl'
 import { Resizer } from './resizer'
 import { Controls } from './controls'
+import { last } from 'lodash';
 
 const debounceTailOnly = (fn: Function, delay: number) => {
     let waiting = false;
@@ -276,7 +277,17 @@ document.addEventListener('DOMContentLoaded', function () {
     })
 
     let seenFocus = false;
+    let lastTime = performance.now();
     regl.frame(() => {
+        const thisTime = performance.now();
+
+        // dTime always assumes between 30 and 144 fps
+        const dTime = Math.min(1000 / 30, Math.max(1000 / 144, thisTime - lastTime));
+
+        lastTime = thisTime;
+
+        console.log(dTime);
+
         // It burns a lot of juice running this thing so cool it while it's not in the very foreground
         if (document.hasFocus() && document.visibilityState == "visible") {
             seenFocus = true;
@@ -286,29 +297,29 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (controls.isDown('plus')) {
-            graphZoom *= 1.05;
+            graphZoom *= 1 + (.002 * dTime);
             resizer.screenSize = 2 / graphZoom;
             updateGraphParams();
         }
         if (controls.isDown('minus')) {
-            graphZoom /= 1.05;
+            graphZoom /= 1 + (.002 * dTime);
             resizer.screenSize = 2 / graphZoom;
             updateGraphParams();
         }
         if (controls.isDown('up')) {
-            graphY += .05 / graphZoom;
+            graphY += .002 * dTime / graphZoom;
             updateGraphParams();
         }
         if (controls.isDown('down')) {
-            graphY -= .05 / graphZoom;
+            graphY -= .002 * dTime / graphZoom;
             updateGraphParams();
         }
         if (controls.isDown('left')) {
-            graphX -= .05 / graphZoom;
+            graphX -= .002 * dTime / graphZoom;
             updateGraphParams();
         }
         if (controls.isDown('right')) {
-            graphX += .05 / graphZoom;
+            graphX += .002 * dTime / graphZoom;
             updateGraphParams();
         }
 

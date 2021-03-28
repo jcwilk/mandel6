@@ -23,7 +23,7 @@ const debounceTailOnly = (fn: Function, delay: number) => {
 
 const regl = REGL({
     extensions: ['OES_texture_float'],
-    optionalExtensions: ['oes_texture_float_linear'],
+    // optionalExtensions: ['oes_texture_float_linear'],
 });
 
 const INITIAL_RADIUS = 512;
@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // TODO: need to restrict reading and writing of orbit data to only area of screenWidth x screenHeight within buffer
     const updateFractal = regl({
         frag: `
-        precision mediump float;
+        precision highp float;
 
         varying vec2 uv;
         uniform sampler2D prevState;
@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const setupQuad = regl({
         frag: `
-    precision mediump float;
+    precision highp float;
     uniform sampler2D prevState;
     uniform float screenWidth;
     uniform float screenHeight;
@@ -239,7 +239,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }`,
 
         vert: `
-    precision mediump float;
+    precision highp float;
     attribute vec2 position;
     varying vec2 uv;
     void main() {

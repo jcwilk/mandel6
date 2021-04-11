@@ -1,16 +1,7 @@
 const path = require('path');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
     entry: './src/index.ts',
-    plugins: [
-        new HtmlWebpackPlugin({
-            title: 'Mandel4',
-            minify: {
-                collapseWhitespace: false
-            }
-        }),
-    ],
     module: {
         rules: [
             {

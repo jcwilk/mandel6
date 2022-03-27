@@ -26,8 +26,9 @@ const regl = REGL({
 });
 
 const MAX_ITERATIONS = 200;
-const MAX_DRAW_RANGE = 4;
+const MAX_DRAW_RANGE = 10;
 const MAX_DRAW_RANGE_SQ = MAX_DRAW_RANGE * MAX_DRAW_RANGE;
+const MAX_MANDELS = 6;
 
 // used for scaling iterations into colors
 const COLOR_CYCLES = 2;
@@ -85,6 +86,7 @@ document.addEventListener('DOMContentLoaded', function () {
     uniform float graphHeight;
     uniform float graphX;
     uniform float graphY;
+    uniform vec3 mandels[${MAX_MANDELS}];
     varying vec2 uv;
 
     vec3 hsv2rgb(vec3 c) {
@@ -93,68 +95,58 @@ document.addEventListener('DOMContentLoaded', function () {
         return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
     }
 
-    int mandel(vec2 c) {
-        float zswap;
-        float zx = 0.;
-        float zy = 0.;
-
-        for(int i=1; i <= ${MAX_ITERATIONS}; i++) {
-            zswap = zx*zx - zy*zy + c.x;
-            zy = (zx+zx)*zy + c.y;
-            zx = zswap;
-
-            if (zx*zx + zy*zy > 4.0) {
-                return i;
-            }
-        }
-
-        //survived all the way - return 0 as a special value
-        return 0;
+    float distanceSq(vec2 diff) {
+        return diff.x*diff.x+diff.y*diff.y;
     }
 
-    // float distanceSq(vec2 diff) {
-    //     return diff.x*diff.x-diff.y*diff.y
-    // }
+    int closestMandel(vec2 pos) {
+        int index = -1;
+        float minDist = -1.;
+        float currDist;
+        for(int i=0; i < ${MAX_MANDELS}; i++) {
+            currDist = distanceSq(pos - mandels[i].xy)/mandels[i].z/mandels[i].z;
+            if (currDist <= ${MAX_DRAW_RANGE_SQ}. && (currDist < minDist || minDist < 0.)) {
+                index = i;
+                minDist = currDist;
+            }
+        }
+        return index;
+    }
 
-    // int closestMandel(vec2 pos) {
-    //     int index = -1;
-    //     float minDist = -1;
-    //     float currDist;
-    //     for(int i=0; i < mandelCount; i++) {
-    //         currDist = distanceSq(mandels[i] - pos);
-    //         if (currDist  <= ${MAX_DRAW_RANGE_SQ}. && currDist < minDist) {
-    //             index = i;
-    //             minDist = currDist;
-    //         }
-    //     }
-    //     return index;
-    // }
+    int multiMandel(vec2 c) {
+        vec2 z = c;
+        int mandelIndex;
+        vec3 man;
+        vec2 zc;
 
-    // int multiMandel(vec2 c) {
-    //     vec2 z = c;
+        for(int i=1; i <= ${MAX_ITERATIONS}; i++) {
+            mandelIndex = closestMandel(z);
 
-    //     for(int i=1; i <= ${MAX_ITERATIONS}; i++) {
-    //         mandelIndex = closestMandel(z);
+            if (mandelIndex == -1) return i;
 
-    //         if (mandelIndex == -1) return i;
+            for(int j=0; j < ${MAX_MANDELS}; j++) {
+                if(j == mandelIndex) {
+                    man = mandels[j];
+                    z = (z - man.xy)/man.z;
+                    zc = (c - man.xy)/man.z;
 
-    //         man = mandels[mandelIndex];
-    //         z = z - man;
+                    z = vec2(z.x*z.x - z.y*z.y + zc.x, (z.x+z.x)*z.y + zc.y);
 
-    //         z = vec2(zx*zx - zy*zy + c.x, (zx+zx)*zy + c.y);
+                    z = z*man.z + man.xy;
+                }
+            }
 
-    //         z = z + man;
-    //     }
+        }
 
-    //     return 0;
-    // }
+        return 0;
+    }
 
     void main() {
         // These transformations can hypothetically happen in the vertex, but that means when you're running up against the
         // lower bounds of floats you'll get the edges wobbling back and forth as you zoom because the rounding errors are
         // happening during the plane interpolation step. Keeping the vertex ranging from -0.5 to 0.5 dodges that issue.
         vec2 c = vec2(graphX, graphY) + uv * vec2(graphWidth, graphHeight);
-        int iterations = mandel(c);
+        int iterations = multiMandel(c);
 
         // if still alive...
         if (iterations == 0) {
@@ -197,6 +189,7 @@ document.addEventListener('DOMContentLoaded', function () {
             graphHeight: (context, props) => (props as any).graphHeight,
             graphX: (context, props) => (props as any).graphX,
             graphY: (context, props) => (props as any).graphY,
+            mandels: (context, props) => (props as any).mandels,
         },
 
         depth: { enable: false },
@@ -256,7 +249,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 graphWidth: resizer.graphWidth,
                 graphHeight: resizer.graphHeight,
                 graphX: graphX,
-                graphY: graphY
+                graphY: graphY,
+                'mandels': [
+                    0.0, 0.0, 0.4,
+                    5, 5, 1.5,
+                    3, -2, .1,
+                    -1, -6, 2,
+                    -7, -2, 1,
+                    -3, 2, 0.3,
+                ],
             })
         }
         needsRender = false;

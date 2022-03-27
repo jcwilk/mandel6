@@ -40,10 +40,10 @@ export class Resizer {
         this.container = container;
         this.screenSize = screenSize; // implicitly calls update()
         const self = this;
-        container.addEventListener("resize", debounce(() => {
+        container.addEventListener("resize", () => {
             self.update();
             if (self.onResize) self.onResize();
-        }, 500));
+        });
     }
 
     update(): void {

@@ -7,7 +7,7 @@ module.exports = merge(common, {
     mode: 'production',
     plugins: [
         new HtmlWebpackPlugin({
-            title: 'Mandel4',
+            title: 'Mandel6',
             template: 'src/index.html'
         }),
         new CleanWebpackPlugin()

@@ -6,7 +6,7 @@ module.exports = merge(common, {
     mode: 'development',
     plugins: [
         new HtmlWebpackPlugin({
-            title: 'Mandel4',
+            title: 'Mandel6',
             minify: {
                 collapseWhitespace: false
             }

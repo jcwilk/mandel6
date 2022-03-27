@@ -1,9 +1,8 @@
 //import _ from 'lodash';
 import './index.css';
-import REGL, { Framebuffer } from 'regl'
+import REGL from 'regl'
 import { Resizer } from './resizer'
 import { Controls } from './controls'
-import { last } from 'lodash';
 
 const debounceTailOnly = (fn: Function, delay: number) => {
     let waiting = false;
@@ -22,46 +21,16 @@ const debounceTailOnly = (fn: Function, delay: number) => {
 }
 
 const regl = REGL({
-    extensions: ['OES_texture_float'],
+    //extensions: ['OES_texture_float'],
     // optionalExtensions: ['oes_texture_float_linear'],
 });
 
-const INITIAL_RADIUS = 512;
-const MAX_RADIUS = 4096;
-let orbitsWidth = INITIAL_RADIUS;
-let orbitsHeight = INITIAL_RADIUS;
-
-// Alleged maximum int that can be converted back and forth to a float, tricky to test though...
-const MAX_ITERATIONS = 16777216;
+const MAX_ITERATIONS = 200;
+const MAX_DRAW_RANGE = 4;
+const MAX_DRAW_RANGE_SQ = MAX_DRAW_RANGE * MAX_DRAW_RANGE;
 
 // used for scaling iterations into colors
-const COLOR_CYCLES = 3;
-const ITERATION_CEILING_SCALE = 500;
-
-// this is how many iterations it does in the first frame after clearing the buffer
-const FIRST_ITERATIONS = 100;
-
-let state: Array<REGL.Framebuffer2D>;
-
-state = (Array(2)).fill(0).map(() =>
-    regl.framebuffer({
-        color: regl.texture({
-            width: orbitsWidth,
-            height: orbitsHeight,
-            wrap: 'repeat',
-
-            // note that firefox and mobile refused to run it with just 'rgb'
-            format: 'rgba', // there's room to add a whole extra channel here wew!
-            type: 'float',
-
-            // These two are nice when there's not a 1:1 between the orbit texture and the render texture.
-            // However, since we're carefully maintaining that ratio these are no longer useful.
-            // mag: 'linear',
-            // min: 'linear'
-        }),
-        depthStencil: false
-    })
-)
+const COLOR_CYCLES = 2;
 
 document.addEventListener('DOMContentLoaded', function () {
     const urlParams = new URLSearchParams(window.location.search);
@@ -72,7 +41,6 @@ document.addEventListener('DOMContentLoaded', function () {
     let graphX = -0.5;
     let graphY = 0;
     let graphZoom = 1;
-    let resetBuffer = false;
 
     if (inX && inY && inZ) {
         graphX = parseFloat(inX);
@@ -84,29 +52,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const resizer = new Resizer(window, 2 / graphZoom);
 
+    let needsRender = true;
+
     const onResize = () => {
         if (resizer.isPortrait()) {
             controls.layout = 'portrait';
         } else {
             controls.layout = 'landscape';
         }
-
-        // these need to be a power of two and should only ever be resized upwards
-        if ((resizer.screenWidth > orbitsWidth && orbitsWidth < MAX_RADIUS) || (resizer.screenHeight > orbitsHeight && orbitsHeight < MAX_RADIUS)) {
-            while (resizer.screenWidth > orbitsWidth && orbitsWidth < MAX_RADIUS) {
-                orbitsWidth *= 2
-            }
-            while (resizer.screenHeight > orbitsHeight && orbitsHeight < MAX_RADIUS) {
-                orbitsHeight *= 2
-            }
-
-            state[0].resize(orbitsWidth, orbitsHeight);
-            state[1].resize(orbitsWidth, orbitsHeight);
-
-            //console.log(`resizing to ${orbitsWidth}x${orbitsHeight}`);
-        }
-
-        resetBuffer = true;
+        needsRender = true;
     }
     onResize();
     resizer.onResize = onResize;
@@ -121,94 +75,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const updateGraphParams = () => {
         updateQueryParams();
-        resetBuffer = true;
+        needsRender = true;
     }
 
-    // TODO: need to restrict reading and writing of orbit data to only area of screenWidth x screenHeight within buffer
-    const updateFractal = regl({
-        frag: `
-        precision highp float;
-
-        varying vec2 uv;
-        uniform sampler2D prevState;
-        uniform float graphWidth;
-        uniform float graphHeight;
-        uniform float screenWidth;
-        uniform float screenHeight;
-        uniform float graphX;
-        uniform float graphY;
-        uniform bool resetBuffer;
-        uniform float orbitsWidth;
-        uniform float orbitsHeight;
-
-        void main()
-        {
-            vec2 screenRegion = vec2(screenWidth/orbitsWidth, screenHeight/orbitsHeight);
-            if (uv.x > screenRegion.x || uv.y > screenRegion.y) {
-                gl_FragColor = vec4(0.,0.,0.,1.);
-                return;
-            }
-            vec4 data = texture2D(prevState, uv);
-            float x = data.x;
-            float y = data.y;
-            int i = int(data.z);
-            vec2 c = (uv / screenRegion - .5) * vec2(graphWidth, graphHeight) + vec2(graphX, graphY);
-
-            if (resetBuffer || i == 0) {
-                x = 0.;
-                y = 0.;
-                i = 0;
-            }
-
-            if (i >= ${MAX_ITERATIONS}) {
-                i = ${MAX_ITERATIONS};
-            } else {
-                if (i == 0) {
-                    for(int j=0;j<${FIRST_ITERATIONS};j++) {
-                        //COPY OF BELOW!
-                        if (x*x + y*y < 4.) {
-                            float zx = x*x - y*y + c.x;
-                            y = (x+x)*y + c.y;
-                            x = zx;
-                            i++;
-                        } else {
-                            x = 2.;
-                            y = 2.;
-                        }
-                    }
-                } else {
-                    //COPY OF ABOVE!
-                    if (x*x + y*y < 4.) {
-                        float zx = x*x - y*y + c.x;
-                        y = (x+x)*y + c.y;
-                        x = zx;
-                        i++;
-                    } else {
-                        x = 2.;
-                        y = 2.;
-                    }
-                }
-            }
-            gl_FragColor = vec4(x,y,float(i),1.);
-        }`,
-
-        framebuffer: ({ tick }, props) => (props as any).dataBuffers[(tick + 1) % 2],
-
-        uniforms: {
-            prevState: ({ tick }, props) => (props as any).dataBuffers[tick % 2]
-        }
-    })
-
-    const setupQuad = regl({
+    const draw = regl({
         frag: `
     precision highp float;
-    uniform sampler2D prevState;
-    uniform float screenWidth;
-    uniform float screenHeight;
-    uniform float orbitsWidth;
-    uniform float orbitsHeight;
+    uniform float graphWidth;
+    uniform float graphHeight;
+    uniform float graphX;
+    uniform float graphY;
     varying vec2 uv;
-    varying vec2 coords;
 
     vec3 hsv2rgb(vec3 c) {
         vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
@@ -216,17 +93,76 @@ document.addEventListener('DOMContentLoaded', function () {
         return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
     }
 
+    int mandel(vec2 c) {
+        float zswap;
+        float zx = 0.;
+        float zy = 0.;
+
+        for(int i=1; i <= ${MAX_ITERATIONS}; i++) {
+            zswap = zx*zx - zy*zy + c.x;
+            zy = (zx+zx)*zy + c.y;
+            zx = zswap;
+
+            if (zx*zx + zy*zy > 4.0) {
+                return i;
+            }
+        }
+
+        //survived all the way - return 0 as a special value
+        return 0;
+    }
+
+    // float distanceSq(vec2 diff) {
+    //     return diff.x*diff.x-diff.y*diff.y
+    // }
+
+    // int closestMandel(vec2 pos) {
+    //     int index = -1;
+    //     float minDist = -1;
+    //     float currDist;
+    //     for(int i=0; i < mandelCount; i++) {
+    //         currDist = distanceSq(mandels[i] - pos);
+    //         if (currDist  <= ${MAX_DRAW_RANGE_SQ}. && currDist < minDist) {
+    //             index = i;
+    //             minDist = currDist;
+    //         }
+    //     }
+    //     return index;
+    // }
+
+    // int multiMandel(vec2 c) {
+    //     vec2 z = c;
+
+    //     for(int i=1; i <= ${MAX_ITERATIONS}; i++) {
+    //         mandelIndex = closestMandel(z);
+
+    //         if (mandelIndex == -1) return i;
+
+    //         man = mandels[mandelIndex];
+    //         z = z - man;
+
+    //         z = vec2(zx*zx - zy*zy + c.x, (zx+zx)*zy + c.y);
+
+    //         z = z + man;
+    //     }
+
+    //     return 0;
+    // }
+
     void main() {
-        //vec2 screenRegion = vec2(1.,1.);
-        vec2 screenRegion = vec2(screenWidth/orbitsWidth, screenHeight/orbitsHeight);
-        vec4 state = texture2D(prevState, uv * screenRegion);
-        if (state.x*state.x + state.y*state.y < 4.) {
+        // These transformations can hypothetically happen in the vertex, but that means when you're running up against the
+        // lower bounds of floats you'll get the edges wobbling back and forth as you zoom because the rounding errors are
+        // happening during the plane interpolation step. Keeping the vertex ranging from -0.5 to 0.5 dodges that issue.
+        vec2 c = vec2(graphX, graphY) + uv * vec2(graphWidth, graphHeight);
+        int iterations = mandel(c);
+
+        // if still alive...
+        if (iterations == 0) {
             gl_FragColor = vec4(0., 0., 0., 1.);
             return;
         }
 
-        float iterations = texture2D(prevState, uv * screenRegion).z;
-        float scaled=log(float(iterations))/log(${ITERATION_CEILING_SCALE}.);
+        float scaled=log(float(iterations))/log(${MAX_ITERATIONS}.);
         gl_FragColor = vec4(
             hsv2rgb(
                 vec3(
@@ -243,7 +179,7 @@ document.addEventListener('DOMContentLoaded', function () {
     attribute vec2 position;
     varying vec2 uv;
     void main() {
-        uv = (position + 1.) / 2.;
+        uv = position / 2.;
         gl_Position = vec4(position, 0, 1);
     }`,
 
@@ -257,16 +193,10 @@ document.addEventListener('DOMContentLoaded', function () {
         },
 
         uniforms: {
-            prevState: ({ tick }, props) => (props as any).dataBuffers[(tick + 1) % 2],
             graphWidth: (context, props) => (props as any).graphWidth,
             graphHeight: (context, props) => (props as any).graphHeight,
             graphX: (context, props) => (props as any).graphX,
             graphY: (context, props) => (props as any).graphY,
-            screenWidth: (context, props) => (props as any).screenWidth,
-            screenHeight: (context, props) => (props as any).screenHeight,
-            resetBuffer: (context, props) => (props as any).resetBuffer,
-            orbitsWidth: (context, props) => (props as any).orbitsWidth,
-            orbitsHeight: (context, props) => (props as any).orbitsHeight,
         },
 
         depth: { enable: false },
@@ -276,7 +206,7 @@ document.addEventListener('DOMContentLoaded', function () {
         primitive: 'triangle strip'
     })
 
-    let seenFocus = false;
+    //let seenFocus = false;
     let lastTime = performance.now();
     regl.frame(() => {
         const thisTime = performance.now();
@@ -287,12 +217,12 @@ document.addEventListener('DOMContentLoaded', function () {
         lastTime = thisTime;
 
         // It burns a lot of juice running this thing so cool it while it's not in the very foreground
-        if (document.hasFocus() && document.visibilityState == "visible") {
-            seenFocus = true;
-        } else if (seenFocus) {
-            // only skip rendering if focus has been confirmed at least once
-            return;
-        }
+        // if (document.hasFocus() && document.visibilityState == "visible") {
+        //     seenFocus = true;
+        // } else if (seenFocus) {
+        //     // only skip rendering if focus has been confirmed at least once
+        //     return;
+        // }
 
         if (controls.isDown('plus')) {
             graphZoom *= 1 + (.002 * dTime);
@@ -321,27 +251,14 @@ document.addEventListener('DOMContentLoaded', function () {
             updateGraphParams();
         }
 
-        setupQuad({
-            graphWidth: resizer.graphWidth,
-            graphHeight: resizer.graphHeight,
-            screenWidth: resizer.screenWidth,
-            screenHeight: resizer.screenHeight,
-            graphX: graphX,
-            graphY: graphY,
-            dataBuffers: state,
-            resetBuffer: resetBuffer,
-            orbitsWidth: orbitsWidth,
-            orbitsHeight: orbitsHeight
-        }, () => {
-            // wonder why this isn't sharing the same props...
-            // maybe because uniforms, context are shared but props are not?
-            // the overlapping framebuffers are a bit of a mess but it works for now
-            // it may make sense to try to separate these three entities (setupQuad, updateFractal, draw)?
-            updateFractal({ dataBuffers: state });
-            regl.draw();
-        })
-
-        resetBuffer = false;
+        if (needsRender) {
+            draw({
+                graphWidth: resizer.graphWidth,
+                graphHeight: resizer.graphHeight,
+                graphX: graphX,
+                graphY: graphY
+            })
+        }
+        needsRender = false;
     })
 }, false);
-

@@ -82,7 +82,7 @@ export class Controls {
         githubButton.className = 'button button-github';
         githubSizer.appendChild(githubButton);
 
-        githubButton.addEventListener("click", () => { document.location.href = "https://github.com/jcwilk/mandel4/blob/master/src/index.ts" })
+        githubButton.addEventListener("click", () => { document.location.href = "https://github.com/jcwilk/mandel6/blob/master/src/index.ts" })
     }
 
     isDown(name: Control) {

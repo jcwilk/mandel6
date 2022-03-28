@@ -1,4 +1,3 @@
-//import _ from 'lodash';
 import './index.css';
 import REGL from 'regl'
 import { Resizer } from './resizer'
@@ -25,10 +24,20 @@ const regl = REGL({
     // optionalExtensions: ['oes_texture_float_linear'],
 });
 
-const MAX_ITERATIONS = 200;
+const MANDELS = [
+    2.5, 2, .1,
+    0, 0, 1,
+    4, 1, 1
+]
+const initialGraphX = 2.734;
+const initialGraphY = 0.937;
+const initialZoom = 1 / .03;
+
+const MAX_ITERATIONS = 100;
 const MAX_DRAW_RANGE = 10;
 const MAX_DRAW_RANGE_SQ = MAX_DRAW_RANGE * MAX_DRAW_RANGE;
-const MAX_MANDELS = 6;
+const MAX_MANDELS = MANDELS.length / 3;
+const MAX_ORBITS = 4;
 
 // used for scaling iterations into colors
 const COLOR_CYCLES = 2;
@@ -39,9 +48,9 @@ document.addEventListener('DOMContentLoaded', function () {
     let inY = urlParams.get('y');
     let inZ = urlParams.get('z');
 
-    let graphX = -0.5;
-    let graphY = 0;
-    let graphZoom = 1;
+    let graphX = initialGraphX;
+    let graphY = initialGraphY;
+    let graphZoom = initialZoom;
 
     if (inX && inY && inZ) {
         graphX = parseFloat(inX);
@@ -95,47 +104,62 @@ document.addEventListener('DOMContentLoaded', function () {
         return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
     }
 
-    float distanceSq(vec2 diff) {
-        return diff.x*diff.x+diff.y*diff.y;
+    bool checkWithinDraw(vec2 v, float scale) {
+        // 1 dimensional distance is always <= than 2 dimensional distance
+        if (abs(v.x)/scale > ${MAX_DRAW_RANGE}. || abs(v.y)/scale > ${MAX_DRAW_RANGE}.) return false;
+        // diamond distance is always >= direct distance
+        if ((abs(v.x)+abs(v.y))/scale <= ${MAX_DRAW_RANGE}.) return true;
+        // it's too close to use shortcuts, so fallback to a^2+b^2
+        return ((v.x*v.x + v.y*v.y)/scale/scale <= ${MAX_DRAW_RANGE_SQ}.);
     }
 
-    int closestMandel(vec2 pos) {
-        int index = -1;
-        float minDist = -1.;
-        float currDist;
-        for(int i=0; i < ${MAX_MANDELS}; i++) {
-            currDist = distanceSq(pos - mandels[i].xy)/mandels[i].z/mandels[i].z;
-            if (currDist <= ${MAX_DRAW_RANGE_SQ}. && (currDist < minDist || minDist < 0.)) {
-                index = i;
-                minDist = currDist;
-            }
-        }
-        return index;
+    // errs on the side of being too inclusive
+    bool quickCheckWithinRange(vec2 v, float scale, float range) {
+        return (abs(v.x)/scale <= ${MAX_DRAW_RANGE}. && abs(v.y)/scale <= ${MAX_DRAW_RANGE}.);
     }
 
-    int multiMandel(vec2 c) {
-        vec2 z = c;
+    int multiPrecheckMandel(vec2 c) {
+        vec2 znext = c;
+        vec2 z, ztemp;
         int mandelIndex;
         vec3 man;
         vec2 zc;
+        vec2 dv;
+        float minDistance, distance;
+        bool found;
 
         for(int i=1; i <= ${MAX_ITERATIONS}; i++) {
-            mandelIndex = closestMandel(z);
-
-            if (mandelIndex == -1) return i;
+            minDistance = ${MAX_DRAW_RANGE}.;
+            z = znext;
+            found = false;
 
             for(int j=0; j < ${MAX_MANDELS}; j++) {
-                if(j == mandelIndex) {
+                // TODO: This check is slightly redundant - we already determined which mandels
+                // were in range once when we were finding last round's eventual minDistance
+                if (checkWithinDraw(z - mandels[j].xy, mandels[j].z)) {
                     man = mandels[j];
-                    z = (z - man.xy)/man.z;
+                    ztemp = (z - man.xy)/man.z;
                     zc = (c - man.xy)/man.z;
 
-                    z = vec2(z.x*z.x - z.y*z.y + zc.x, (z.x+z.x)*z.y + zc.y);
+                    ztemp = vec2(ztemp.x*ztemp.x - ztemp.y*ztemp.y + zc.x, (ztemp.x+ztemp.x)*ztemp.y + zc.y);
 
-                    z = z*man.z + man.xy;
+                    ztemp = ztemp*man.z + man.xy;
+
+                    for(int k=0; k < ${MAX_MANDELS}; k++) {
+                        dv = mandels[k].xy - ztemp;
+                        if(quickCheckWithinRange(dv, mandels[k].z, minDistance)) {
+                            distance = (dv.x*dv.x+dv.y*dv.y)/mandels[k].z/mandels[k].z;
+                            if (distance <= minDistance) {
+                                minDistance = distance;
+                                znext = ztemp;
+                                found = true;
+                            }
+                        }
+                    }
                 }
             }
 
+            if (!found) return i;
         }
 
         return 0;
@@ -146,7 +170,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // lower bounds of floats you'll get the edges wobbling back and forth as you zoom because the rounding errors are
         // happening during the plane interpolation step. Keeping the vertex ranging from -0.5 to 0.5 dodges that issue.
         vec2 c = vec2(graphX, graphY) + uv * vec2(graphWidth, graphHeight);
-        int iterations = multiMandel(c);
+        int iterations = multiPrecheckMandel(c);
 
         // if still alive...
         if (iterations == 0) {
@@ -250,14 +274,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 graphHeight: resizer.graphHeight,
                 graphX: graphX,
                 graphY: graphY,
-                'mandels': [
-                    0.0, 0.0, 0.4,
-                    5, 5, 1.5,
-                    3, -2, .1,
-                    -1, -6, 2,
-                    -7, -2, 1,
-                    -3, 2, 0.3,
-                ],
+                'mandels': MANDELS,
             })
         }
         needsRender = false;

@@ -29,15 +29,16 @@ const MANDELS = [
     0, 0, 1,
     4, 1, 1
 ]
-const initialGraphX = 2.734;
-const initialGraphY = 0.937;
-const initialZoom = 1 / .03;
+
+const initialGraphX = 1.524;
+const initialGraphY = 0.129;
+const initialZoom = 0.743;
 
 const MAX_ITERATIONS = 100;
-const MAX_DRAW_RANGE = 10;
+const MAX_DRAW_RANGE = 8;
 const MAX_DRAW_RANGE_SQ = MAX_DRAW_RANGE * MAX_DRAW_RANGE;
 const MAX_MANDELS = MANDELS.length / 3;
-const MAX_ORBITS = 4;
+const MAX_ORBITS = 10;
 
 // used for scaling iterations into colors
 const COLOR_CYCLES = 2;
@@ -118,48 +119,86 @@ document.addEventListener('DOMContentLoaded', function () {
         return (abs(v.x)/scale <= ${MAX_DRAW_RANGE}. && abs(v.y)/scale <= ${MAX_DRAW_RANGE}.);
     }
 
-    int multiPrecheckMandel(vec2 c) {
-        vec2 znext = c;
-        vec2 z, ztemp;
+    void insertOrbit(inout vec3 orbits[${MAX_ORBITS}], inout vec3 fromMandels[${MAX_ORBITS}], int nextOrbitCount, vec3 orbit, vec3 fromMandel) {
+        for(int i=${MAX_ORBITS}-1; i >= 0; i--) {
+            if (i <= nextOrbitCount) {
+                if (i == nextOrbitCount || i == 0 || orbits[i-1].z < orbit.z) {
+                    orbits[i] = orbit;
+                    fromMandels[i] = fromMandel;
+                    return;
+                }
+
+                orbits[i] = orbits[i-1];
+                fromMandels[i] = fromMandels[i-1];
+            }
+        }
+    }
+
+    int multiOrbitMandel(vec2 c) {
+        vec2 ztemp;
         int mandelIndex;
         vec3 man;
         vec2 zc;
         vec2 dv;
-        float minDistance, distance;
-        bool found;
+        float distanceSq;
+
+        vec3 orbits[${MAX_ORBITS}];
+        vec3 nextOrbits[${MAX_ORBITS}];
+
+        vec3 fromMandels[${MAX_ORBITS}];
+        vec3 nextFromMandels[${MAX_ORBITS}];
+
+        vec3 orbit;
+        int orbitCount;
+        int nextOrbitCount = 0;
+
+        for(int i=0; i<${MAX_MANDELS}; i++) {
+            // TODO: almost entirely copypasta from below
+            dv = mandels[i].xy - vec2(0, 0);
+            if(quickCheckWithinRange(dv, mandels[i].z, ${MAX_DRAW_RANGE}.)) {
+                distanceSq = (dv.x*dv.x+dv.y*dv.y)/mandels[i].z/mandels[i].z;
+                if (distanceSq <= ${MAX_DRAW_RANGE_SQ}.) {
+                    insertOrbit(nextOrbits, nextFromMandels, nextOrbitCount, vec3(0., 0., distanceSq), mandels[i]);
+                    if (nextOrbitCount < ${MAX_ORBITS}) nextOrbitCount++;
+                }
+            }
+        }
 
         for(int i=1; i <= ${MAX_ITERATIONS}; i++) {
-            minDistance = ${MAX_DRAW_RANGE}.;
-            z = znext;
-            found = false;
+            orbitCount = nextOrbitCount;
 
-            for(int j=0; j < ${MAX_MANDELS}; j++) {
-                // TODO: This check is slightly redundant - we already determined which mandels
-                // were in range once when we were finding last round's eventual minDistance
-                if (checkWithinDraw(z - mandels[j].xy, mandels[j].z)) {
-                    man = mandels[j];
-                    ztemp = (z - man.xy)/man.z;
+            for(int j=0; j < ${MAX_ORBITS}; j++) {
+                if (j < nextOrbitCount) {
+                    orbits[j] = nextOrbits[j];
+                    fromMandels[j] = nextFromMandels[j];
+                }
+            }
+
+            nextOrbitCount = 0;
+            for(int j=0; j < ${MAX_ORBITS}; j++) {
+                if (j < orbitCount) {
+                    orbit = orbits[j];
+                    man = fromMandels[j];
+
+                    ztemp = (orbit.xy - man.xy)/man.z;
                     zc = (c - man.xy)/man.z;
-
                     ztemp = vec2(ztemp.x*ztemp.x - ztemp.y*ztemp.y + zc.x, (ztemp.x+ztemp.x)*ztemp.y + zc.y);
-
                     ztemp = ztemp*man.z + man.xy;
 
                     for(int k=0; k < ${MAX_MANDELS}; k++) {
                         dv = mandels[k].xy - ztemp;
-                        if(quickCheckWithinRange(dv, mandels[k].z, minDistance)) {
-                            distance = (dv.x*dv.x+dv.y*dv.y)/mandels[k].z/mandels[k].z;
-                            if (distance <= minDistance) {
-                                minDistance = distance;
-                                znext = ztemp;
-                                found = true;
+                        if(quickCheckWithinRange(dv, mandels[k].z, ${MAX_DRAW_RANGE}.)) {
+                            distanceSq = (dv.x*dv.x+dv.y*dv.y)/mandels[k].z/mandels[k].z;
+                            if (distanceSq <= ${MAX_DRAW_RANGE_SQ}.) {
+                                insertOrbit(nextOrbits, nextFromMandels, nextOrbitCount, vec3(ztemp, distanceSq), mandels[k]);
+                                if (nextOrbitCount < ${MAX_ORBITS}) nextOrbitCount++;
                             }
                         }
                     }
                 }
             }
 
-            if (!found) return i;
+            if (nextOrbitCount == 0) return i;
         }
 
         return 0;
@@ -170,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // lower bounds of floats you'll get the edges wobbling back and forth as you zoom because the rounding errors are
         // happening during the plane interpolation step. Keeping the vertex ranging from -0.5 to 0.5 dodges that issue.
         vec2 c = vec2(graphX, graphY) + uv * vec2(graphWidth, graphHeight);
-        int iterations = multiPrecheckMandel(c);
+        int iterations = multiOrbitMandel(c);
 
         // if still alive...
         if (iterations == 0) {

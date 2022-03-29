@@ -19,20 +19,19 @@ const debounceTailOnly = (fn: Function, delay: number) => {
     }
 }
 
-const regl = REGL({
-    //extensions: ['OES_texture_float'],
-    // optionalExtensions: ['oes_texture_float_linear'],
-});
+
+
+
 
 const MANDELS = [
-    2.5, 2, .1,
-    0, 0, 1,
+    1, 4, .5,
+    0, 0, 0.8,
     4, 1, 1
 ]
 
 const initialGraphX = 1.524;
-const initialGraphY = 0.129;
-const initialZoom = 0.743;
+const initialGraphY = 2.129;
+const initialZoom = 0.3;
 
 const MAX_ITERATIONS = 100;
 const MAX_DRAW_RANGE = 8;
@@ -44,6 +43,18 @@ const MAX_ORBITS = 10;
 const COLOR_CYCLES = 2;
 
 document.addEventListener('DOMContentLoaded', function () {
+    const canvas = document.createElement("canvas");
+    canvas.id = "regl-canvas";
+    canvas.setAttribute("width", String(window.innerWidth));
+    canvas.setAttribute("height", String(window.innerHeight));
+    document.body.appendChild(canvas);
+
+    const regl = REGL({
+        canvas: canvas
+        //extensions: ['OES_texture_float'],
+        // optionalExtensions: ['oes_texture_float_linear'],
+    });
+
     const urlParams = new URLSearchParams(window.location.search);
     let inX = urlParams.get('x');
     let inY = urlParams.get('y');
@@ -88,6 +99,51 @@ document.addEventListener('DOMContentLoaded', function () {
         updateQueryParams();
         needsRender = true;
     }
+
+    let enabled = false;
+
+
+    const enableIt = (e: any) => {
+        e.preventDefault();
+        enabled = true
+    };
+    const disableIt = (e: any) => {
+        e.preventDefault();
+        enabled = false
+    };
+    const moveIt = (e: any) => {
+        e.preventDefault();
+        if (!enabled) return false;
+
+        let eventX, eventY;
+
+        if (e.changedTouches && e.changedTouches.length > 0) {
+            eventX = e.changedTouches[0].pageX;
+            eventY = e.changedTouches[0].pageY;
+        }
+        else {
+            eventX = e.offsetX;
+            eventY = e.offsetY;
+        }
+
+        const x = (eventX / resizer.screenWidth - 0.5) * resizer.graphWidth + graphX;
+        const y = -(eventY / resizer.screenHeight - 0.5) * resizer.graphHeight + graphY;
+        MANDELS[0] = x;
+        MANDELS[1] = y;
+        needsRender = true;
+    };
+
+    canvas.addEventListener('mousedown', enableIt);
+    canvas.addEventListener('touchstart', enableIt);
+
+    canvas.addEventListener('mouseout', disableIt);
+    canvas.addEventListener('mouseup', disableIt);
+    // canvas.addEventListener('touchend', disableIt);
+    // canvas.addEventListener('touchleave', disableIt);
+    // canvas.addEventListener('touchcancel', disableIt);
+
+    // canvas.addEventListener('mousemove', moveIt);
+    canvas.addEventListener('touchmove', moveIt);
 
     const draw = regl({
         frag: `

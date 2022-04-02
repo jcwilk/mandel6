@@ -138,11 +138,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     canvas.addEventListener('mouseout', disableIt);
     canvas.addEventListener('mouseup', disableIt);
-    // canvas.addEventListener('touchend', disableIt);
-    // canvas.addEventListener('touchleave', disableIt);
-    // canvas.addEventListener('touchcancel', disableIt);
+    canvas.addEventListener('touchend', disableIt);
+    canvas.addEventListener('touchleave', disableIt);
+    canvas.addEventListener('touchcancel', disableIt);
 
-    // canvas.addEventListener('mousemove', moveIt);
+    canvas.addEventListener('mousemove', moveIt);
     canvas.addEventListener('touchmove', moveIt);
 
     const draw = regl({

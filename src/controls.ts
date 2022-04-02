@@ -54,10 +54,12 @@ export class Controls {
             const pointerDown = (event: MouseEvent | TouchEvent) => {
                 state.isDown = true;
                 event.preventDefault();
+                event.stopPropagation();
             }
             const pointerUp = (event: MouseEvent | TouchEvent) => {
                 state.isDown = false;
                 event.preventDefault();
+                event.stopPropagation();
             }
             button.addEventListener("mousedown", pointerDown, true);
             button.addEventListener("touchstart", pointerDown, true);

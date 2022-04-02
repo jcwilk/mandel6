@@ -23,36 +23,27 @@ const debounceTailOnly = (fn: Function, delay: number) => {
 
 
 
-const initialGraphX = 1.524;
-const initialGraphY = 2.129;
-const initialZoom = 0.3;
+const initialGraphX = -0.5;
+const initialGraphY = 0;
+const initialZoom = 0.4;
 
 const MAX_ITERATIONS = 100;
 const MAX_DRAW_RANGE = 8;
 const MAX_DRAW_RANGE_SQ = MAX_DRAW_RANGE * MAX_DRAW_RANGE;
-const MAX_MANDELS = 10;
+const MAX_MANDELS = 100;
 const MAX_ORBITS = 10;
 
 // used for scaling iterations into colors
 const COLOR_CYCLES = 2;
 
 document.addEventListener('DOMContentLoaded', function () {
-    const canvas = document.createElement("canvas");
-    canvas.id = "regl-canvas";
-    canvas.setAttribute("width", String(window.innerWidth));
-    canvas.setAttribute("height", String(window.innerHeight));
-    document.body.appendChild(canvas);
-
     const regl = REGL({
-        canvas: canvas
         //extensions: ['OES_texture_float'],
         // optionalExtensions: ['oes_texture_float_linear'],
     });
 
     const mandels = [
-        1, 4, .5,
-        0, 0, 0.8,
-        4, 1, 1
+        0, 0, 1
     ]
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -149,17 +140,17 @@ document.addEventListener('DOMContentLoaded', function () {
         updatePosition(e);
     };
 
-    canvas.addEventListener('mousedown', enableIt);
-    canvas.addEventListener('touchstart', enableIt);
+    document.body.addEventListener('mousedown', enableIt);
+    document.body.addEventListener('touchstart', enableIt);
 
-    canvas.addEventListener('mouseout', disableIt);
-    canvas.addEventListener('mouseup', disableIt);
-    canvas.addEventListener('touchend', disableIt);
-    canvas.addEventListener('touchleave', disableIt);
-    canvas.addEventListener('touchcancel', disableIt);
+    document.body.addEventListener('mouseout', disableIt);
+    document.body.addEventListener('mouseup', disableIt);
+    document.body.addEventListener('touchend', disableIt);
+    document.body.addEventListener('touchleave', disableIt);
+    document.body.addEventListener('touchcancel', disableIt);
 
-    canvas.addEventListener('mousemove', moveIt);
-    canvas.addEventListener('touchmove', moveIt);
+    document.body.addEventListener('mousemove', moveIt);
+    document.body.addEventListener('touchmove', moveIt);
 
     const draw = regl({
         frag: `

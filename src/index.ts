@@ -36,7 +36,7 @@ const initialZoom = 0.3;
 const MAX_ITERATIONS = 100;
 const MAX_DRAW_RANGE = 8;
 const MAX_DRAW_RANGE_SQ = MAX_DRAW_RANGE * MAX_DRAW_RANGE;
-const MAX_MANDELS = MANDELS.length / 3;
+const MAX_MANDELS = 3;
 const MAX_ORBITS = 10;
 
 // used for scaling iterations into colors
@@ -152,7 +152,7 @@ document.addEventListener('DOMContentLoaded', function () {
     uniform float graphHeight;
     uniform float graphX;
     uniform float graphY;
-    uniform vec3 mandels[${MAX_MANDELS}];
+    uniform vec3 mandels[${MANDELS.length}];
     varying vec2 uv;
 
     vec3 hsv2rgb(vec3 c) {
@@ -210,11 +210,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         for(int i=0; i<${MAX_MANDELS}; i++) {
             // TODO: almost entirely copypasta from below
-            dv = mandels[i].xy - vec2(0, 0);
+            dv = mandels[i].xy - c;
             if(quickCheckWithinRange(dv, mandels[i].z, ${MAX_DRAW_RANGE}.)) {
                 distanceSq = (dv.x*dv.x+dv.y*dv.y)/mandels[i].z/mandels[i].z;
                 if (distanceSq <= ${MAX_DRAW_RANGE_SQ}.) {
-                    insertOrbit(nextOrbits, nextFromMandels, nextOrbitCount, vec3(0., 0., distanceSq), mandels[i]);
+                    insertOrbit(nextOrbits, nextFromMandels, nextOrbitCount, vec3(c, distanceSq), mandels[i]);
                     if (nextOrbitCount < ${MAX_ORBITS}) nextOrbitCount++;
                 }
             }

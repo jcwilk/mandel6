@@ -36,7 +36,7 @@ const initialZoom = 0.3;
 const MAX_ITERATIONS = 100;
 const MAX_DRAW_RANGE = 8;
 const MAX_DRAW_RANGE_SQ = MAX_DRAW_RANGE * MAX_DRAW_RANGE;
-const MAX_MANDELS = 3;
+const MAX_MANDELS = 10;
 const MAX_ORBITS = 10;
 
 // used for scaling iterations into colors
@@ -152,7 +152,8 @@ document.addEventListener('DOMContentLoaded', function () {
     uniform float graphHeight;
     uniform float graphX;
     uniform float graphY;
-    uniform vec3 mandels[${MANDELS.length}];
+    uniform int mandelsLength;
+    uniform vec3 mandels[${MAX_MANDELS}];
     varying vec2 uv;
 
     vec3 hsv2rgb(vec3 c) {
@@ -209,6 +210,8 @@ document.addEventListener('DOMContentLoaded', function () {
         int nextOrbitCount = 0;
 
         for(int i=0; i<${MAX_MANDELS}; i++) {
+            if(i >= mandelsLength) break;
+
             // TODO: almost entirely copypasta from below
             dv = mandels[i].xy - c;
             if(quickCheckWithinRange(dv, mandels[i].z, ${MAX_DRAW_RANGE}.)) {
@@ -224,31 +227,33 @@ document.addEventListener('DOMContentLoaded', function () {
             orbitCount = nextOrbitCount;
 
             for(int j=0; j < ${MAX_ORBITS}; j++) {
-                if (j < nextOrbitCount) {
-                    orbits[j] = nextOrbits[j];
-                    fromMandels[j] = nextFromMandels[j];
-                }
+                if (j >= nextOrbitCount) break;
+
+                orbits[j] = nextOrbits[j];
+                fromMandels[j] = nextFromMandels[j];
             }
 
             nextOrbitCount = 0;
             for(int j=0; j < ${MAX_ORBITS}; j++) {
-                if (j < orbitCount) {
-                    orbit = orbits[j];
-                    man = fromMandels[j];
+                if (j >= orbitCount) break;
 
-                    ztemp = (orbit.xy - man.xy)/man.z;
-                    zc = (c - man.xy)/man.z;
-                    ztemp = vec2(ztemp.x*ztemp.x - ztemp.y*ztemp.y + zc.x, (ztemp.x+ztemp.x)*ztemp.y + zc.y);
-                    ztemp = ztemp*man.z + man.xy;
+                orbit = orbits[j];
+                man = fromMandels[j];
 
-                    for(int k=0; k < ${MAX_MANDELS}; k++) {
-                        dv = mandels[k].xy - ztemp;
-                        if(quickCheckWithinRange(dv, mandels[k].z, ${MAX_DRAW_RANGE}.)) {
-                            distanceSq = (dv.x*dv.x+dv.y*dv.y)/mandels[k].z/mandels[k].z;
-                            if (distanceSq <= ${MAX_DRAW_RANGE_SQ}.) {
-                                insertOrbit(nextOrbits, nextFromMandels, nextOrbitCount, vec3(ztemp, distanceSq), mandels[k]);
-                                if (nextOrbitCount < ${MAX_ORBITS}) nextOrbitCount++;
-                            }
+                ztemp = (orbit.xy - man.xy)/man.z;
+                zc = (c - man.xy)/man.z;
+                ztemp = vec2(ztemp.x*ztemp.x - ztemp.y*ztemp.y + zc.x, (ztemp.x+ztemp.x)*ztemp.y + zc.y);
+                ztemp = ztemp*man.z + man.xy;
+
+                for(int k=0; k < ${MAX_MANDELS}; k++) {
+                    if(k >= mandelsLength) break;
+
+                    dv = mandels[k].xy - ztemp;
+                    if(quickCheckWithinRange(dv, mandels[k].z, ${MAX_DRAW_RANGE}.)) {
+                        distanceSq = (dv.x*dv.x+dv.y*dv.y)/mandels[k].z/mandels[k].z;
+                        if (distanceSq <= ${MAX_DRAW_RANGE_SQ}.) {
+                            insertOrbit(nextOrbits, nextFromMandels, nextOrbitCount, vec3(ztemp, distanceSq), mandels[k]);
+                            if (nextOrbitCount < ${MAX_ORBITS}) nextOrbitCount++;
                         }
                     }
                 }
@@ -309,6 +314,7 @@ document.addEventListener('DOMContentLoaded', function () {
             graphX: (context, props) => (props as any).graphX,
             graphY: (context, props) => (props as any).graphY,
             mandels: (context, props) => (props as any).mandels,
+            mandelsLength: (context, props) => (props as any).mandels.length
         },
 
         depth: { enable: false },
@@ -369,7 +375,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 graphHeight: resizer.graphHeight,
                 graphX: graphX,
                 graphY: graphY,
-                'mandels': MANDELS,
+                mandels: MANDELS,
+                mandelsLength: MANDELS.length
             })
         }
         needsRender = false;

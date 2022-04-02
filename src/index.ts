@@ -23,12 +23,6 @@ const debounceTailOnly = (fn: Function, delay: number) => {
 
 
 
-const MANDELS = [
-    1, 4, .5,
-    0, 0, 0.8,
-    4, 1, 1
-]
-
 const initialGraphX = 1.524;
 const initialGraphY = 2.129;
 const initialZoom = 0.3;
@@ -54,6 +48,12 @@ document.addEventListener('DOMContentLoaded', function () {
         //extensions: ['OES_texture_float'],
         // optionalExtensions: ['oes_texture_float_linear'],
     });
+
+    const mandels = [
+        1, 4, .5,
+        0, 0, 0.8,
+        4, 1, 1
+    ]
 
     const urlParams = new URLSearchParams(window.location.search);
     let inX = urlParams.get('x');
@@ -102,19 +102,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let enabled = false;
 
+    let isClicking = false;
 
-    const enableIt = (e: any) => {
-        e.preventDefault();
-        enabled = true
-    };
-    const disableIt = (e: any) => {
-        e.preventDefault();
-        enabled = false
-    };
-    const moveIt = (e: any) => {
-        e.preventDefault();
-        if (!enabled) return false;
-
+    const updatePosition = (e: any) => {
         let eventX, eventY;
 
         if (e.changedTouches && e.changedTouches.length > 0) {
@@ -128,9 +118,35 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const x = (eventX / resizer.screenWidth - 0.5) * resizer.graphWidth + graphX;
         const y = -(eventY / resizer.screenHeight - 0.5) * resizer.graphHeight + graphY;
-        MANDELS[0] = x;
-        MANDELS[1] = y;
+        mandels[mandels.length - 3] = x;
+        mandels[mandels.length - 2] = y;
+
         needsRender = true;
+    }
+
+    const enableIt = (e: any) => {
+        e.preventDefault();
+        enabled = true;
+
+        if (!isClicking) {
+            isClicking = true;
+            mandels.push(0);
+            mandels.push(0);
+            mandels.push(0.01 / graphZoom);
+
+            updatePosition(e);
+        }
+    };
+    const disableIt = (e: any) => {
+        isClicking = false;
+        e.preventDefault();
+        enabled = false
+    };
+    const moveIt = (e: any) => {
+        e.preventDefault();
+        if (!enabled) return false;
+
+        updatePosition(e);
     };
 
     canvas.addEventListener('mousedown', enableIt);
@@ -342,6 +358,11 @@ document.addEventListener('DOMContentLoaded', function () {
         //     return;
         // }
 
+        if (isClicking) {
+            mandels[mandels.length - 1] *= 1 + (0.001 * dTime);
+            needsRender = true;
+        }
+
         if (controls.isDown('plus')) {
             graphZoom *= 1 + (.002 * dTime);
             resizer.screenSize = 2 / graphZoom;
@@ -375,8 +396,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 graphHeight: resizer.graphHeight,
                 graphX: graphX,
                 graphY: graphY,
-                mandels: MANDELS,
-                mandelsLength: MANDELS.length
+                mandels: mandels,
+                mandelsLength: mandels.length
             })
         }
         needsRender = false;

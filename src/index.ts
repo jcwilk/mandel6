@@ -99,12 +99,12 @@ document.addEventListener('DOMContentLoaded', function () {
         let eventX, eventY;
 
         if (e.changedTouches && e.changedTouches.length > 0) {
-            eventX = e.changedTouches[0].pageX;
-            eventY = e.changedTouches[0].pageY;
+            eventX = e.changedTouches[0].clientX;
+            eventY = e.changedTouches[0].clientY;
         }
         else {
-            eventX = e.offsetX;
-            eventY = e.offsetY;
+            eventX = e.clientX;
+            eventY = e.clientY;
         }
 
         const x = (eventX / resizer.screenWidth - 0.5) * resizer.graphWidth + graphX;
@@ -336,8 +336,8 @@ document.addEventListener('DOMContentLoaded', function () {
     regl.frame(() => {
         const thisTime = performance.now();
 
-        // dTime always assumes between 30 and 144 fps
-        const dTime = Math.min(1000 / 30, Math.max(1000 / 144, thisTime - lastTime));
+        // dTime always assumes between 1 and 144 fps
+        const dTime = Math.min(1000, Math.max(1000 / 144, thisTime - lastTime));
 
         lastTime = thisTime;
 
